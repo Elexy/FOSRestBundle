@@ -14,9 +14,9 @@ namespace FOS\RestBundle\Routing\Loader;
 use Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser,
     Symfony\Component\DependencyInjection\ContainerInterface,
     Symfony\Component\Config\Loader\LoaderInterface,
-    Symfony\Component\Config\Loader\LoaderResolverInterface,
-    \Symfony\Component\Config\Loader\LoaderResolver,
     Symfony\Component\HttpFoundation\Request;
+
+use FOS\RestBundle\Routing\Loader\Reader\RestControllerReader;
 
 /**
  * RestRouteLoader REST-enabled controller router loader.
@@ -24,12 +24,12 @@ use Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser,
  * @author Konstantin Kudryashov <ever.zet@gmail.com>
  * @author Bulat Shakirzyanov <mallluhuct@gmail.com>
  */
-class RestRouteLoader extends AbstractRestRouteLoader implements LoaderInterface
+class AbstractRestRouteLoader
 {
-    private $container;
-    private $controllerParser;
-    private $controllerReader;
-    private $defaultFormat;
+    protected $container;
+    protected $controllerParser;
+    protected $controllerReader;
+    protected $defaultFormat;
 
     /**
      * Initializes loader.
@@ -102,12 +102,48 @@ class RestRouteLoader extends AbstractRestRouteLoader implements LoaderInterface
     {
     }
 
-       /**
-     * Sets the loader resolver.
+    /**
+     * Returns controller locator by it's id.
      *
-     * @param LoaderResolver $resolver A LoaderResolver instance
+     * @param string $controller
+     *
+     * @return array
      */
-    function setResolver(LoaderResolver $resolver)
+    private function getControllerLocator($controller)
     {
+        $class  = null;
+        $prefix = null;
+
+        if (class_exists($controller)) {
+            // full class name
+            $class  = $controller;
+            $prefix = $class . '::';
+        } elseif (false !== strpos($controller, ':')) {
+            // bundle:controller notation
+            try {
+                $notation             = $this->controllerParser->parse($controller . ':method');
+                list($class, $method) = explode('::', $notation);
+                $prefix               = $class . '::';
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException(
+                    sprintf('Can\'t locate "%s" controller.', $controller)
+                );
+            }
+        } elseif ($this->container->has($controller)) {
+            // service_id
+            $prefix = $controller . ':';
+            $this->container->enterScope('request');
+            $this->container->set('request', new Request);
+            $class = get_class($this->container->get($controller));
+            $this->container->leaveScope('request');
+        }
+
+        if (empty($class)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Class could not be determined for Controller identified by "%s".', $controller
+            ));
+        }
+
+        return array($prefix, $class);
     }
 }
