@@ -12,9 +12,12 @@
 namespace FOS\RestBundle\Routing\Loader\Reader;
 
 use Doctrine\Common\Annotations\Reader;
-use FOS\RestBundle\Util\Pluralization;
+
 use Symfony\Component\Routing\Route;
+
+use FOS\RestBundle\Util\Inflector\InflectorInterface;
 use FOS\RestBundle\Routing\RestRouteCollection;
+use FOS\RestBundle\Request\ParamReader;
 
 /**
  * REST controller actions reader.
@@ -24,22 +27,27 @@ use FOS\RestBundle\Routing\RestRouteCollection;
 class RestActionReader
 {
     private $annotationReader;
+    private $paramReader;
+    private $inflector;
 
     private $routePrefix;
     private $namePrefix;
     private $parents = array();
 
-    private $availableHTTPMethods = array('get', 'post', 'put', 'patch', 'delete', 'head');
+    private $availableHTTPMethods = array('get', 'post', 'put', 'patch', 'delete', 'link', 'unlink', 'head', 'options');
     private $availableConventionalActions = array('new', 'edit', 'remove');
 
     /**
      * Initializes controller reader.
      *
-     * @param Reader $annotationReader annotation reader
+     * @param Reader           $annotationReader annotation reader
+     * @param queryParamReader $queryParamReader query param reader
      */
-    public function __construct(Reader $annotationReader)
+    public function __construct(Reader $annotationReader, ParamReader $paramReader, InflectorInterface $inflector)
     {
         $this->annotationReader = $annotationReader;
+        $this->paramReader = $paramReader;
+        $this->inflector = $inflector;
     }
 
     /**
@@ -107,10 +115,11 @@ class RestActionReader
      *
      * @param RestRouteCollection $collection route collection to read into
      * @param \ReflectionMethod   $method     method reflection
+     * @param array $resource
      *
      * @return Route
      */
-    public function read(RestRouteCollection $collection, \ReflectionMethod $method)
+    public function read(RestRouteCollection $collection, \ReflectionMethod $method, $resource)
     {
         // check that every route parent has non-empty singular name
         foreach ($this->parents as $parent) {
@@ -128,7 +137,8 @@ class RestActionReader
         }
 
         // if we can't get http-method and resources from method name - skip
-        if (!($httpMethodAndResources = $this->getHttpMethodAndResourcesFromMethod($method))) {
+        $httpMethodAndResources = $this->getHttpMethodAndResourcesFromMethod($method, $resource);
+        if (!$httpMethodAndResources) {
             return;
         }
 
@@ -151,7 +161,7 @@ class RestActionReader
         }
 
         $routeName = $httpMethod.$this->generateRouteName($resources);
-        $urlParts  = $this->generateUrlParts($resources, $arguments);
+        $urlParts  = $this->generateUrlParts($resources, $arguments, $httpMethod);
 
         // if passed method is not valid HTTP method then it's either
         // a hypertext driver, a custom object (PUT) or collection (GET)
@@ -168,7 +178,8 @@ class RestActionReader
         $requirements = array('_method' => strtoupper($httpMethod));
         $options      = array();
 
-        if ($annotation = $this->readRouteAnnotation($method)) {
+        $annotation = $this->readRouteAnnotation($method);
+        if ($annotation) {
             $annoRequirements = $annotation->getRequirements();
 
             if (!isset($annoRequirements['_method'])) {
@@ -200,6 +211,7 @@ class RestActionReader
         if ('_' === substr($method->getName(), 0, 1)) {
             return false;
         }
+
         // if method has NoRoute annotation - skip
         if ($this->readMethodAnnotation($method, 'NoRoute')) {
             return false;
@@ -212,20 +224,32 @@ class RestActionReader
      * Returns HTTP method and resources list from method signature.
      *
      * @param \ReflectionMethod $method
+     * @param array $resource
      *
-     * @return array
+     * @return Boolean|array
      */
-    private function getHttpMethodAndResourcesFromMethod(\ReflectionMethod $method)
+    private function getHttpMethodAndResourcesFromMethod(\ReflectionMethod $method, $resource)
     {
         // if method doesn't match regex - skip
         if (!preg_match('/([a-z][_a-z0-9]+)(.*)Action/', $method->getName(), $matches)) {
-            return;
+            return false;
         }
 
         $httpMethod = strtolower($matches[1]);
         $resources  = preg_split(
             '/([A-Z][^A-Z]*)/', $matches[2], -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE
         );
+
+        if (0 === strpos($httpMethod, 'c')
+            && in_array(substr($httpMethod, 1), $this->availableHTTPMethods)
+        ) {
+            $httpMethod = substr($httpMethod, 1);
+            if (!empty($resource)) {
+                $resource[count($resource)-1] = $this->inflector->pluralize(end($resource));
+            }
+        }
+
+        $resources = array_merge($resource, $resources);
 
         return array($httpMethod, $resources);
     }
@@ -239,13 +263,29 @@ class RestActionReader
      */
     private function getMethodArguments(\ReflectionMethod $method)
     {
-        // ignore arguments that are or extend from Symfony\Component\HttpFoundation\Request
+        // ignore all query params
+        $params = $this->paramReader->getParamsFromMethod($method);
+
+        // ignore type hinted arguments that are or extend from:
+        // * Symfony\Component\HttpFoundation\Request
+        // * FOS\RestBundle\Request\QueryFetcher
+        $ignoreClasses = array(
+            'Symfony\Component\HttpFoundation\Request',
+            'FOS\RestBundle\Request\ParamFetcherInterface',
+        );
+
         $arguments = array();
         foreach ($method->getParameters() as $argument) {
-            if ($argumentClass = $argument->getClass()) {
-                if ($argumentClass->getName() === 'Symfony\Component\HttpFoundation\Request'
-                 || $argumentClass->isSubclassOf('Symfony\Component\HttpFoundation\Request')) {
-                     continue;
+            if (isset($params[$argument->getName()])) {
+                continue;
+            }
+
+            $argumentClass = $argument->getClass();
+            if ($argumentClass) {
+                foreach ($ignoreClasses as $class) {
+                    if ($argumentClass->getName() === $class || $argumentClass->isSubclassOf($class)) {
+                        continue 2;
+                    }
                 }
             }
 
@@ -279,10 +319,11 @@ class RestActionReader
      *
      * @param array $resources
      * @param array $arguments
+     * @param string $httpMethod
      *
      * @return array
      */
-    private function generateUrlParts(array $resources, array $arguments)
+    private function generateUrlParts(array $resources, array $arguments, $httpMethod)
     {
         $urlParts = array();
         foreach ($resources as $i => $resource) {
@@ -297,14 +338,19 @@ class RestActionReader
             if (isset($arguments[$i])) {
                 if (null !== $resource) {
                     $urlParts[] =
-                        strtolower(Pluralization::pluralize($resource))
+                        strtolower($this->inflector->pluralize($resource))
                         .'/{'.$arguments[$i]->getName().'}';
                 } else {
-                    $urlParts[] =
-                        '{'.$arguments[$i]->getName().'}';
+                    $urlParts[] = '{'.$arguments[$i]->getName().'}';
                 }
             } elseif (null !== $resource) {
-                $urlParts[] = strtolower($resource);
+                if ((0 === count($arguments) && !in_array($httpMethod, $this->availableHTTPMethods))
+                    || 'new' === $httpMethod
+                ) {
+                    $urlParts[] = $this->inflector->pluralize(strtolower($resource));
+                } else {
+                    $urlParts[] = strtolower($resource);
+                }
             }
         }
 
@@ -326,13 +372,15 @@ class RestActionReader
             // allow hypertext as the engine of application state
             // through conventional GET actions
             return 'get';
-        } elseif (count($arguments) < count($resources)) {
+        }
+
+        if (count($arguments) < count($resources)) {
             // resource collection
             return 'get';
-        } else {
-            //custom object
-            return 'post';
         }
+
+        //custom object
+        return 'patch';
     }
 
     /**
@@ -347,8 +395,6 @@ class RestActionReader
         foreach (array('Route','Get','Post','Put','Patch','Delete','Head') as $annotationName) {
             if ($annotation = $this->readMethodAnnotation($reflection, $annotationName)) {
                 return $annotation;
-
-                break;
             }
         }
     }

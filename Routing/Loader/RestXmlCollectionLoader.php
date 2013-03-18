@@ -11,15 +11,15 @@
 
 namespace FOS\RestBundle\Routing\Loader;
 
-use Symfony\Component\Config\FileLocatorInterface,
-    Symfony\Component\Config\Resource\FileResource,
-    Symfony\Component\Routing\Loader\XmlFileLoader,
-    Symfony\Component\Config\Loader\FileLoader,
-    Symfony\Component\Routing\RouteCollection,
-    Symfony\Component\Routing\Route;
+use Symfony\Component\Config\FileLocatorInterface;
+use Symfony\Component\Routing\Loader\XmlFileLoader;
+use Symfony\Component\Routing\RouteCollection;
+use Symfony\Component\Routing\Route;
 
-use FOS\RestBundle\Routing\RestRouteCollection,
-    FOS\RestBundle\Routing\Loader\RestRouteProcessor;
+use FOS\RestBundle\Routing\RestRouteCollection;
+use FOS\RestBundle\Routing\Loader\RestRouteProcessor;
+
+use Symfony\Component\Config\Util\XmlUtils;
 
 /**
  * RestXmlCollectionLoader XML file collections loader.
@@ -32,6 +32,12 @@ class RestXmlCollectionLoader extends XmlFileLoader
 
     private $processor;
 
+    /**
+     * Initializes xml loader.
+     *
+     * @param FileLocatorInterface $locator   locator
+     * @param RestRouteProcessor   $processor route processor
+     */
     public function __construct(FileLocatorInterface $locator, RestRouteProcessor $processor)
     {
         parent::__construct($locator);
@@ -40,7 +46,7 @@ class RestXmlCollectionLoader extends XmlFileLoader
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     protected function parseNode(RouteCollection $collection, \DOMElement $node, $path, $file)
     {
@@ -85,8 +91,8 @@ class RestXmlCollectionLoader extends XmlFileLoader
     /**
      * Returns true if this class supports the given resource.
      *
-     * @param  mixed  $resource A resource
-     * @param  string $type     The resource type
+     * @param mixed  $resource A resource
+     * @param string $type     The resource type
      *
      * @return Boolean true if this class supports the given resource, false otherwise
      */
@@ -98,25 +104,43 @@ class RestXmlCollectionLoader extends XmlFileLoader
     }
 
     /**
+     * @param  \DOMDocument              $dom
      * @throws \InvalidArgumentException When xml doesn't validate its xsd schema
      */
     protected function validate(\DOMDocument $dom)
     {
-        $schema = __DIR__.'/../../Resources/config/schema/routing/rest_routing-1.0.xsd';
+        $location = __DIR__.'/../../Resources/config/schema/routing/rest_routing-1.0.xsd';
 
         $current = libxml_use_internal_errors(true);
-        if (!$dom->schemaValidate($schema)) {
-            throw new \InvalidArgumentException(implode("\n", $this->getXmlErrors()));
+        libxml_clear_errors();
+
+        if (!$dom->schemaValidate($location)) {
+            throw new \InvalidArgumentException(implode("\n", $this->getXmlErrors_($current)));
         }
         libxml_use_internal_errors($current);
     }
 
     /**
+     * {@inheritDoc}
+     */
+    protected function loadFile($file)
+    {
+        if (class_exists('Symfony\Component\Config\Util\XmlUtils')) {
+            return XmlUtils::loadFile($file, __DIR__ . '/../../Resources/config/schema/routing/rest_routing-1.0.xsd');
+        }
+ 
+        return parent::loadFile($file);
+    }
+
+    /**
      * Retrieves libxml errors and clears them.
+     *
+     * Note: The underscore postfix on the method name is to ensure compatibility with versions
+     *       before 2.0.16 while working around a bug in PHP https://bugs.php.net/bug.php?id=62956
      *
      * @return array An array of libxml error strings
      */
-    private function getXmlErrors()
+    private function getXmlErrors_($internalErrors)
     {
         $errors = array();
         foreach (libxml_get_errors() as $error) {
@@ -131,7 +155,9 @@ class RestXmlCollectionLoader extends XmlFileLoader
         }
 
         libxml_clear_errors();
+        libxml_use_internal_errors($internalErrors);
 
         return $errors;
     }
+
 }

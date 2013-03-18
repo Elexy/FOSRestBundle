@@ -1,16 +1,28 @@
 Step 3: Listener support
 ========================
-All listeners except the ``mime_type`` one are enabled by default.  You can
-disable one or more of these listeners.  For example, below you can see how to
-disable all listeners:
+
+[Listeners](http://symfony.com/doc/master/cookbook/service_container/event_listener.html)
+are a way to hook into the request handling. The this Bundles provides various events
+from decoding the request content in the request (body listener), determining the
+correct response format (format listener), reading parameters from the request
+(parameter fetcher listener), to formatting the response either with a template engine
+like twig or to f.e. xml or json using a serializer (view response listener)) as well
+as automatically setting the accepted http methods in the response (accept listener).
+
+With this in mind we now turn to explain each one of them.
+
+All listeners except the ``mime_type`` one are disabled by default.  You can
+enable one or more of these listeners.  For example, below you can see how to
+enable all listeners:
 
 ```yaml
 # app/config/config.yml
 fos_rest:
-    body_listener: false
-    format_listener: false
+    param_fetcher_listener: true
+    body_listener: true
+    format_listener: true
     view:
-        view_response_listener: false
+        view_response_listener: 'force'
 ```
 
 ### View Response listener
@@ -51,7 +63,7 @@ extends from the ``@Template()`` annotation.
 
 The ``@View()`` and ``@Template()`` annotations behave essentially the same
 with a minor difference. When ``view_response_listener`` is set to ``true``
-instead of the default ``force`` and ``@View()`` is not used, then rendering
+instead of ``force`` and ``@View()`` is not used, then rendering
 will be delegated to SensioFrameworkExtraBundle.
 
 Note that it is necessary to disable view annotations in
@@ -115,6 +127,20 @@ public function deleteUserAction()
 }
 ```
 
+The groups for the serializer can be configured as follows:
+
+```php
+<?php
+
+/**
+ * @View(serializerGroups={"group1", "group2"})
+ */
+public function getUsersAction()
+{
+    //...
+}
+```
+
 See the following example code for more details:
 https://github.com/liip/LiipHelloBundle/blob/master/Controller/ExtraController.php
 
@@ -129,7 +155,7 @@ application/json) in a PUT.
 You can add a decoder for a custom format. You can also replace the default
 decoder services provided by the bundle for the ``json`` and ``xml`` formats.
 Below you can see how to override the decoder for the json format (the xml
-decoder is explicitely kept to its default service):
+decoder is explicitly kept to its default service):
 
 ```yaml
 # app/config/config.yml
@@ -209,8 +235,154 @@ http://symfony.com/doc/current/cookbook/request/mime_type.html
 # app/config/config.yml
 fos_rest:
     view:
-        mime_types: ['jsonp': ['application/javascript', 'application/javascript+jsonp']]
+        mime_types: {'jsonp': ['application/javascript', 'application/javascript+jsonp']}
 ```
+
+### Param fetcher listener
+
+The param fetcher listener simply sets the ParamFetcher instance as a request attribute
+configured for the matched controller so that the user does not need to do this manually.
+
+```yaml
+# app/config/config.yml
+fos_rest:
+    param_fetcher_listener: true
+```
+
+```php
+<?php
+
+use FOS\RestBundle\Request\ParamFetcher;
+use FOS\RestBundle\Controller\Annotations\RequestParam;
+use FOS\RestBundle\Controller\Annotations\QueryParam;
+
+class FooController extends Controller
+{
+    /**
+     * Will look for a page query parameter, ie. ?page=XX
+     * If not passed it will be automatically be set to the default of "1"
+     * If passed but doesn't match the requirement "\d+" it will be also be set to the default of "1"
+     * Note that if the value matches the default then no validation is run.
+     * So make sure the default value really matches your expectations.
+     *
+     * @QueryParam(name="page", requirements="\d+", default="1", description="Page of the overview.")
+     *
+     * In some case you also want to have a strict requirements but accept a null value, this is possible
+     * thanks to the nullable option.
+     * If ?count= parameter is set, the requirements will be checked strictly, if not, the null value will be used.
+     * If you set the strict parameter without a nullable option, this will result in an error if the parameter is
+     * missing from the query.
+     *
+     * @QueryParam(name="count", requirements="\d+", strict=true, nullable=true, description="Item count limit")
+     *
+     * Will look for a firstname request parameters, ie. firstname=foo in POST data.
+     * If not passed it will error out when read out of the ParamFetcher since RequestParam defaults to strict=true
+     * If passed but doesn't match the requirement "\d+" it will also error out (400 Bad Request)
+     * Note that if the value matches the default then no validation is run.
+     * So make sure the default value really matches your expectations.
+     *
+     * @RequestParam(name="firstname", requirements="[a-z]+", description="Firstname.")
+     *
+     * If you want to work with array: ie. ?ids[]=1&ids[]=2&ids[]=1337, use:
+     *
+     * @QueryParam(array="true", name="ids", requirements="\d+", default="1", description="List of ids")
+     * (works with QueryParam and RequestParam)
+     *
+     * It will validate each entries of ids with your requirement, by this way, if an entry is invalid,
+     * this one will be replaced by default value.
+     *
+     * ie: ?ids[]=1337&ids[]=notinteger will return array(1337, 1);
+     * If ids is not defined, array(1) will be given
+     *
+     * Array must have a single depth or it will return default value. It's difficult to validate with
+     * preg_match each deeps of array, if you want to deal with that, use another validation system.
+     *
+     * @param ParamFetcher $paramFetcher
+     */
+    public function getArticlesAction(ParamFetcher $paramFetcher)
+    {
+        $page = $paramFetcher->get('page');
+        $articles = array('bim', 'bam', 'bingo');
+
+        return array('articles' => $articles, 'page' => $page);
+    }
+```
+
+Note: There is also ``$paramFetcher->all()`` to fetch all configured query parameters at once. And also
+both ``$paramFetcher->get()`` and ``$paramFetcher->all()`` support and optional ``$strict`` parameter
+to throw a ``\RuntimeException`` on a validation error.
+
+Optionally the listener can also already set all configured query parameters as request attributes
+
+```yaml
+# app/config/config.yml
+fos_rest:
+    param_fetcher_listener: force
+```
+
+```php
+<?php
+
+class FooController extends Controller
+{
+    /**
+     * @QueryParam(name="page", requirements="\d+", default="1", description="Page of the overview.")
+     *
+     * @param string $page
+     */
+    public function getArticlesAction($page)
+    {
+        $articles = array('bim', 'bam', 'bingo');
+
+        return array('articles' => $articles, 'page' => $page);
+    }
+```
+
+### Allowed Http Methods Listener
+
+This listener add the ``Allow`` HTTP header to each request appending all allowed methods for a given resource.
+
+Let's say we have the following routes:
+```
+api_get_users
+api_post_users
+api_get_user
+```
+
+A ``GET`` request to ``api_get_users`` will response in:
+
+```
+< HTTP/1.0 200 OK
+< Date: Sat, 16 Jun 2012 15:17:22 GMT
+< Server: Apache/2.2.22 (Ubuntu)
+< allow: GET, POST
+```
+
+You need to enable this listener like this as it is disabled by default:
+
+```
+fos_rest:
+    allowed_methods_listener: true
+```
+
+### Security Exception Listener
+
+By default it is the responsibility of firewall access points to deal with AccessDeniedExceptions.
+For example the ``form`` entry point will redirect to the login page. However for a RESTful application
+the proper thing to happen is to return a 403 HTTP status code. This listener is triggered before
+the normal exception listener and firewall entry points and forces returning a 403 for any of the
+formats configured.
+
+You need to enable this listener like this as it is disabled by default:
+
+```
+fos_rest:
+    access_denied_listener:
+        # all requests using the 'json' format will return a 403 on an access denied violation
+        json: true
+```
+
+It is also recommended to enable the exception controller described in the next chapter.
 
 ## That was it!
 [Return to the index](index.md) or continue reading about [ExceptionController support](4-exception-controller-support.md).

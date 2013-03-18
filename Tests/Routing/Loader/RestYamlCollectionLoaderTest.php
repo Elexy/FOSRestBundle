@@ -11,11 +11,11 @@
 
 namespace FOS\RestBundle\Tests\Routing\Loader;
 
-use Symfony\Component\Config\Loader\LoaderResolver,
-    Symfony\Component\Config\FileLocator;
+use Symfony\Component\Config\Loader\LoaderResolver;
+use Symfony\Component\Config\FileLocator;
 
-use FOS\RestBundle\Routing\Loader\RestRouteProcessor,
-    FOS\RestBundle\Routing\Loader\RestYamlCollectionLoader;
+use FOS\RestBundle\Routing\Loader\RestRouteProcessor;
+use FOS\RestBundle\Routing\Loader\RestYamlCollectionLoader;
 
 /**
  * RestYamlCollectionLoader test.
@@ -63,7 +63,7 @@ class RestYamlCollectionLoaderTest extends LoaderTest
     /**
      * Load routes collection from YAML fixture routes under Tests\Fixtures directory.
      *
-     * @param   string  $fixtureName    name of the class fixture
+     * @param string $fixtureName name of the class fixture
      */
     protected function loadFromYamlCollectionFixture($fixtureName)
     {

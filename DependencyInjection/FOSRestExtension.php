@@ -11,13 +11,11 @@
 
 namespace FOS\RestBundle\DependencyInjection;
 
-use Symfony\Component\Config\FileLocator,
-    Symfony\Component\HttpKernel\DependencyInjection\Extension,
-    Symfony\Component\DependencyInjection\Reference,
-    Symfony\Component\DependencyInjection\ContainerInterface,
-    Symfony\Component\DependencyInjection\ContainerBuilder,
-    Symfony\Component\DependencyInjection\Loader\XmlFileLoader,
-    Symfony\Component\HttpKernel\Kernel;
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\HttpKernel\DependencyInjection\Extension;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
+use Symfony\Component\HttpKernel\Kernel;
 
 use FOS\Rest\Util\Codes;
 
@@ -28,7 +26,7 @@ class FOSRestExtension extends Extension
     /**
      * Loads the services based on your application configuration.
      *
-     * @param array $configs
+     * @param array            $configs
      * @param ContainerBuilder $container
      */
     public function load(array $configs, ContainerBuilder $container)
@@ -39,10 +37,9 @@ class FOSRestExtension extends Extension
         $loader->load('view.xml');
         $loader->load('routing.xml');
         $loader->load('util.xml');
+        $loader->load('request.xml');
 
-        if (version_compare(FOSRestBundle::getSymfonyVersion(Kernel::VERSION), '2.1.0', '<')) {
-            $container->setParameter('fos_rest.routing.loader.controller.class', $container->getParameter('fos_rest.routing.loader_2_0.controller.class'));
-        }
+        $container->setParameter('fos_rest.cache_dir', $config['cache_dir']);
 
         $formats = array();
         foreach ($config['view']['formats'] as $format => $enabled) {
@@ -59,7 +56,13 @@ class FOSRestExtension extends Extension
         foreach ($config['service'] as $key => $service) {
             $container->setAlias($this->getAlias().'.'.$key, $config['service'][$key]);
         }
-        $container->setParameter($this->getAlias().'.objects_version', $config['objects_version']);
+
+        if (!empty($config['serializer']['version'])) {
+            $container->setParameter($this->getAlias().'.serializer.exclusion_strategy.version', $config['serializer']['version']);
+        }
+        if (!empty($config['serializer']['groups'])) {
+            $container->setParameter($this->getAlias().'.serializer.exclusion_strategy.groups', $config['serializer']['groups']);
+        }
 
         $container->setParameter($this->getAlias().'.formats', $formats);
         $container->setParameter($this->getAlias().'.default_engine', $config['view']['default_engine']);
@@ -75,6 +78,13 @@ class FOSRestExtension extends Extension
             $config['view']['failed_validation'] = constant('\FOS\Rest\Util\Codes::'.$config['view']['failed_validation']);
         }
         $container->setParameter($this->getAlias().'.failed_validation', $config['view']['failed_validation']);
+
+        if (!is_numeric($config['view']['empty_content'])) {
+            $config['view']['empty_content'] = constant('\FOS\Rest\Util\Codes::'.$config['view']['empty_content']);
+        }
+        $container->setParameter($this->getAlias().'.empty_content', $config['view']['empty_content']);
+
+        $container->setParameter($this->getAlias().'.serialize_null', $config['view']['serialize_null']);
 
         if (!empty($config['view']['view_response_listener'])) {
             $loader->load('view_response_listener.xml');
@@ -121,12 +131,29 @@ class FOSRestExtension extends Extension
         } else {
             $container->setParameter($this->getAlias().'.mime_types', array());
         }
+
+        if (!empty($config['param_fetcher_listener'])) {
+            $loader->load('param_fetcher_listener.xml');
+
+            if ('force' === $config['param_fetcher_listener']) {
+                $container->setParameter($this->getAlias().'.param_fetcher_listener.set_params_as_attributes', true);
+            }
+        }
+
+        if (!empty($config['allowed_methods_listener'])) {
+            $loader->load('allowed_methods_listener.xml');
+        }
+
+        if (!empty($config['access_denied_listener'])) {
+            $loader->load('access_denied_listener.xml');
+            $container->setParameter($this->getAlias().'.access_denied_listener.formats', $config['access_denied_listener']);
+        }
     }
 
     /**
      * Check if an exception is loadable.
      *
-     * @param string $exception class to test
+     * @param  string                   $exception class to test
      * @throws InvalidArgumentException if the class was not found.
      */
     private function testExceptionExists($exception)

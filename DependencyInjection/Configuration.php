@@ -11,9 +11,9 @@
 
 namespace FOS\RestBundle\DependencyInjection;
 
-use Symfony\Component\Config\Definition\Builder\TreeBuilder,
-    Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition,
-    Symfony\Component\Config\Definition\ConfigurationInterface;
+use Symfony\Component\Config\Definition\Builder\TreeBuilder;
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
+use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 use FOS\Rest\Util\Codes;
 
@@ -27,6 +27,8 @@ use FOS\Rest\Util\Codes;
  */
 class Configuration implements ConfigurationInterface
 {
+    private $forceOptionValues = array(false, true, 'force');
+
     /**
      * Generates the configuration tree.
      *
@@ -39,6 +41,18 @@ class Configuration implements ConfigurationInterface
 
         $rootNode
             ->children()
+                ->arrayNode('access_denied_listener')
+                    ->useAttributeAsKey('name')
+                    ->prototype('boolean')->end()
+                ->end()
+                ->scalarNode('param_fetcher_listener')->defaultFalse()->end()
+                ->scalarNode('cache_dir')->cannotBeEmpty()->defaultValue('%kernel.cache_dir%/fos_rest')
+                    ->validate()
+                        ->ifNotInArray($this->forceOptionValues)
+                        ->thenInvalid('The param_fetcher_listener option does not support %s. Please choose one of '.json_encode($this->forceOptionValues))
+                    ->end()
+                ->end()
+                ->scalarNode('allowed_methods_listener')->defaultFalse()->end()
                 ->arrayNode('routing_loader')
                     ->addDefaultsIfNotSet()
                     ->children()
@@ -52,9 +66,22 @@ class Configuration implements ConfigurationInterface
                         ->scalarNode('templating')->defaultValue('templating')->end()
                         ->scalarNode('serializer')->defaultValue('jms_serializer.serializer')->end()
                         ->scalarNode('view_handler')->defaultValue('fos_rest.view_handler.default')->end()
+                        ->scalarNode('inflector')->defaultValue('fos_rest.inflector.doctrine')->end()
                     ->end()
                 ->end()
-                ->scalarNode('objects_version')->defaultNull()->end()
+                ->arrayNode('serializer')
+                    ->validate()
+                        ->ifTrue(function($v) { return !empty($v['version']) && !empty($v['groups']); })
+                        ->thenInvalid('Only either a version or a groups exclusion strategy can be set')
+                    ->end()
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->scalarNode('version')->defaultNull()->end()
+                        ->arrayNode('groups')
+                            ->prototype('scalar')->end()
+                        ->end()
+                    ->end()
+                ->end()
             ->end()
         ->end();
 
@@ -85,7 +112,6 @@ class Configuration implements ConfigurationInterface
                         ->end()
                         ->arrayNode('mime_types')
                             ->useAttributeAsKey('name')
-                            ->defaultValue(array())
                             ->prototype('variable')->end()
                         ->end()
                         ->arrayNode('formats')
@@ -98,8 +124,15 @@ class Configuration implements ConfigurationInterface
                             ->defaultValue(array('html' => true))
                             ->prototype('boolean')->end()
                         ->end()
-                        ->scalarNode('view_response_listener')->defaultValue('force')->end()
+                        ->scalarNode('view_response_listener')->defaultFalse()
+                            ->validate()
+                                ->ifNotInArray($this->forceOptionValues)
+                                ->thenInvalid('The view_response_listener option does not support %s. Please choose one of '.json_encode($this->forceOptionValues))
+                            ->end()
+                        ->end()
                         ->scalarNode('failed_validation')->defaultValue(Codes::HTTP_BAD_REQUEST)->end()
+                        ->scalarNode('empty_content')->defaultValue(Codes::HTTP_NO_CONTENT)->end()
+                        ->booleanNode('serialize_null')->defaultFalse()->end()
                     ->end()
                 ->end()
             ->end();

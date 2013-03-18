@@ -1,8 +1,38 @@
 Upgrading
 =========
 
-Note as FOSRestBundle is not yet declared stable, this document will only be updated
-for major refactorings.
+Note as FOSRestBundle is not yet declared stable, this document will be updated to
+list important BC breaks.
+
+### upgrading from 0.10.0
+
+* now requires JMSSerializerBundle 1.0 which is not compatible with Symfony2.0
+
+### upgrading from 0.9.0
+
+ * the view response listener is now disabled by default. See [enable view listener](https://github.com/FriendsOfSymfony/FOSRestBundle/blob/master/Resources/doc/3-listener-support.md#view-response-listener) for how to enable it.
+ * JMSSerializerBundle is now an optional dependency and therefore needs to be added explicitly
+
+### upgrading from 0.7.0
+
+ * renamed "query" fetcher to "param" fetcher, this affects the configuration as well as the name of interfaces and request attributes
+ * ViewHandler now only calls "createView()" in a single form instance set as "form" in the data array
+ * removed "serializer_version" config option on favor of "serializer: ['version': ..]"
+
+### upgrading from 0.6.0
+
+ * renamed [get|set]Objects*() to [get|set]Serializer*()
+ * renamed the "objects_version: XXX" configuration option to "serializer: [version: XXX]"
+ * moved serializer configuration code from ViewHandler::createResponse() to ViewHandler::getSerializer()
+ * made ViewHandler::getSerializer() protected again
+
+### 19 April 2012
+
+ * Change route fallback action to PATCH instead of POST
+
+ Automatically generated routes will now fall back to the PATCH instead of the POST method.
+
+ More information in the docs, at [this issue](https://github.com/FriendsOfSymfony/FOSRestBundle/issues/223) and [this PR](https://github.com/FriendsOfSymfony/FOSRestBundle/pull/224).
 
 ### upgrading from 0.5.0_old_serializer
 

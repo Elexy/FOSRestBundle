@@ -22,6 +22,10 @@ https://github.com/liip/LiipHelloBundle/blob/master/Controller/RestController.ph
 Single RESTful controller routes
 ================================
 
+In this section we are looking at controllers for resources without sub-resources.
+Handling of sub-resources requires some additional considerations which
+are explained in the next section.
+
 ```yaml
 # app/config/routing.yml
 users:
@@ -31,50 +35,56 @@ users:
 
 This will tell Symfony2 to automatically generate proper REST routes from your ``UsersController`` action names.
 Notice ``type: rest`` option. It's required so that the RestBundle can find which routes are supported.
-Notice ``name_prefix: my_bundle_`` option. It's useful to prefix the generated controller routes. Take care that
-you can use ``name_prefix`` on an import only when the file is imported itself with the type ``rest``.
+
+Notice the ``name_prefix: my_bundle_`` option. It's useful to prefix the generated controller routes to organize
+your several resources paths. Take care that you can use ``name_prefix`` on an import only when the file is imported
+itself with the type ``rest``. The parent option is used in sub-resources as we will see in the next section for
+multiple RESTful controller routes.
 
 ## Define resource actions
 
 ```php
 <?php
-class UsersController extends Controller
+class UsersController
 {
+    public function optionsUsersAction()
+    {} // "options_users" [OPTIONS] /users
+
     public function getUsersAction()
-    {} // "get_users"    [GET] /users
+    {} // "get_users"     [GET] /users
 
     public function newUsersAction()
-    {} // "new_users"    [GET] /users/new
+    {} // "new_users"     [GET] /users/new
 
     public function postUsersAction()
-    {} // "post_users"   [POST] /users
+    {} // "post_users"    [POST] /users
 
     public function patchUsersAction()
     {} // "patch_users"   [PATCH] /users
 
     public function getUserAction($slug)
-    {} // "get_user"     [GET] /users/{slug}
+    {} // "get_user"      [GET] /users/{slug}
 
     public function editUserAction($slug)
-    {} // "edit_user"    [GET] /users/{slug}/edit
+    {} // "edit_user"     [GET] /users/{slug}/edit
 
     public function putUserAction($slug)
-    {} // "put_user"     [PUT] /users/{slug}
+    {} // "put_user"      [PUT] /users/{slug}
 
     public function patchUserAction($slug)
-    {} // "patch_user"   [PATCH] /users/{slug}
+    {} // "patch_user"    [PATCH] /users/{slug}
 
     public function lockUserAction($slug)
-    {} // "lock_user"    [POST] /users/{slug}/lock
+    {} // "lock_user"     [PATCH] /users/{slug}/lock
 
-    public function banUserAction($slug, $id)
-    {} // "ban_user"     [POST] /users/{slug}/ban
+    public function banUserAction($slug)
+    {} // "ban_user"      [PATCH] /users/{slug}/ban
 
     public function removeUserAction($slug)
-    {} // "remove_user"  [GET] /users/{slug}/remove
+    {} // "remove_user"   [GET] /users/{slug}/remove
 
     public function deleteUserAction($slug)
-    {} // "delete_user"  [DELETE] /users/{slug}
+    {} // "delete_user"   [DELETE] /users/{slug}
 
     public function getUserCommentsAction($slug)
     {} // "get_user_comments"    [GET] /users/{slug}/comments
@@ -94,19 +104,94 @@ class UsersController extends Controller
     public function putUserCommentAction($slug, $id)
     {} // "put_user_comment"     [PUT] /users/{slug}/comments/{id}
 
-    public function voteUserCommentAction($slug, $id)
-    {} // "vote_user_comment"    [POST] /users/{slug}/comments/{id}/vote
+    public function postUserCommentVoteAction($slug, $id)
+    {} // "post_user_comment_vote" [POST] /users/{slug}/comments/{id}/vote
 
     public function removeUserCommentAction($slug, $id)
     {} // "remove_user_comment"  [GET] /users/{slug}/comments/{id}/remove
 
     public function deleteUserCommentAction($slug, $id)
     {} // "delete_user_comment"  [DELETE] /users/{slug}/comments/{id}
+    
+    public function linkUserAction($slug)
+    {} // "link_user_friend"     [LINK] /users/{slug}
+    
+    public function unlinkUserAction($slug)
+    {} // "link_user_friend"     [UNLINK] /users/{slug}
 }
 ```
 
 That's all. All your resource (``UsersController``) actions will get mapped to the proper routes
 as shown in the comments in the above example. Here are a few things to note:
+
+#### Implicit resource name definition
+
+Its possible to omit the ``User`` part of the method names when the Controller implements the
+``ClassResourceInterface``. In this case FOSRestBundle can determine the resource based on the
+Controller name. However for this to work its important to use singular names in the Controller.
+However by omitting the resource name from the methods ``getUserAction`` and ``getUsersAction``
+there would be an overlap of method names there is a special convention to call the methods
+``getAction`` and ``cgetAction``, where the ``c`` standard for collection. So the following
+would work as well.
+
+```
+<?php
+
+use FOS\RestBundle\Routing\ClassResourceInterface;
+
+class UserController implements ClassResourceInterface
+{
+    ..
+
+    public function cgetAction()
+    {} // "get_users"     [GET] /users
+
+    public function newAction()
+    {} // "new_users"     [GET] /users/new
+
+    public function getAction($slug)
+    {} // "get_user"      [GET] /users/{slug}
+
+    ..
+    public function getCommentsAction($slug)
+    {} // "get_user_comments"    [GET] /users/{slug}/comments
+
+    ..
+}
+```
+
+Finally its possible to override the resource name derived from the Controller name via the
+``@RouteResource`` annotation:
+
+
+```
+<?php
+
+use FOS\RestBundle\Controller\Annotations\RouteResource;
+
+/**
+ * @RouteResource("User")
+ */
+class FooController
+{
+    ..
+
+    public function cgetAction()
+    {} // "get_users"     [GET] /users
+
+    public function newAction()
+    {} // "new_users"     [GET] /users/new
+
+    public function getAction($slug)
+    {} // "get_user"      [GET] /users/{slug}
+
+    ..
+    public function getCommentsAction($slug)
+    {} // "get_user_comments"    [GET] /users/{slug}/comments
+
+    ..
+}
+```
 
 ### REST Actions
 
@@ -119,12 +204,27 @@ returns a single resource for this type. Shown as ``UsersController::getUserActi
 as ``UsersController::postUsersAction()`` above.
 * **put** - this action accepts *PUT* requests to the url */resources/{id}* and updates a single resource for this type.
 Shown as ``UsersController::putUserAction()`` above.
-* **delete** - this action accepts *DELETE* requests to the url */resources/{id}* and deltes a single resource for this
+* **delete** - this action accepts *DELETE* requests to the url */resources/{id}* and deletes a single resource for this
 type. Shown as ``UsersController::deleteUserAction()`` above.
 * **patch** - this action accepts *PATCH* requests to the url */resources* and is supposed to partially modify collection
 of resources (e.g. apply batch modifications to subset of resources). Shown as ``UsersController::patchUsersAction()`` above.
 This action also accepts *PATCH* requests to the url */resources/{id}* and is supposed to partially modify the resource. 
 Shown as ``UsersController::patchUserAction()`` above.
+* **option** - this action accepts *OPTION* requests to the url */resources* and is supposed to return a list of REST
+resources that the user has access to.  Shown as ``UsersController::userAction()`` above.
+* **link** - this action accepts *LINK* requests to the url */resources/{id}* and is supposed to return nothing but a
+status code indicating that the specified resources were linked. It is used to declare a resource as related to an other one.
+When calling a LINK url you must provide in your header at least one link header formatted as follow : 
+``<http://example.com/resources/{id}\>; rel="kind_of_relation"``
+* **unlink** - this action accepts *UNLINK* requests to the url */resources/{id}* and is supposed to return nothing but
+a status code indicating that the specified resources were unlinked. It is used to declare that some resources are not
+related anymore. When calling a UNLINK url you must provide in your header at least one link header formatted as follow : 
+``<http://example.com/resources/{id}\>; rel="kind_of_relation"``
+
+Important note about **link** and **unlink**: The implementation of the request listener extracting the resources as entities is not provided
+by this bundle. A good implementation can be found here : http://williamdurand.fr/2012/08/02/rest-apis-with-symfony2-the-right-way/
+It also contains some examples on how to use it. **link** and **unlink** were obsoleted by RFC 2616, RFC 5988 aims to define
+it in a more clear way. Using these methods is not risky, but remains unclear (cf. issues 323 and 325).
 
 ### Conventional Actions
 
@@ -139,14 +239,14 @@ to *PUT*, or update, an existing resource. Shown as ``UsersController::editUserA
 * **remove** - A hypermedia representation that acts as the engine to *DELETE*. Typically this is a form that allows the
 client to *DELETE* an existing resource. Commonly a confirmation form. Shown as ``UsersController::removeUserAction()`` above.
 
-### Custom POST Actions
+### Custom PATCH Actions
 
-All actions that do not match the ones listed in the sections above will register as a *POST* action. In the controller
+All actions that do not match the ones listed in the sections above will register as a *PATCH* action. In the controller
 shown above, these actions are ``UsersController::lockUserAction()``, ``UsersController::banUserAction()`` and 
 ``UsersController::voteUserCommentAction()``. You could just as easily create a method called
-``UsersController::promoteUserAction()`` which would take a *POST* request to the url */users/{slug}/promote*.
+``UsersController::promoteUserAction()`` which would take a *PATCH* request to the url */users/{slug}/promote*.
 This allows for easy updating of aspects of a resource, without having to deal with the resource as a whole at
-the standard *POST* endpoint.
+the standard *PATCH* or *PUT* endpoint.
 
 ### Sub-Resource Actions
 

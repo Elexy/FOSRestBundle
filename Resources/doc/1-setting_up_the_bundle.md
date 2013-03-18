@@ -4,8 +4,11 @@ Step 1: Setting up the bundle
 
 **Note:**
 
-> This bundle depends on the [JMSSerializerBundle](https://github.com/schmittjoh/JMSSerializerBundle). Please follow the instructions of the bundle to set it up.
-
+> This bundle recommends using [JMSSerializer](https://github.com/schmittjoh/serializer) which is 
+> integrated into Symfony2 via [JMSSerializerBundle](https://github.com/schmittjoh/JMSSerializerBundle).
+> Please follow the instructions of the bundle to add it to your composer.json and how to set it up.
+> If you do not add a dependency to JMSSerializerBundle, you will need to manually setup an alternative
+> service and configure the Bundle to use it via the ``service`` section in the app config
 
 Ultimately, the FOSRestBundle files should be downloaded to the
 `vendor/bundles/FOS/RestBundle` directory.
@@ -43,7 +46,15 @@ $ git submodule add git://github.com/FriendsOfSymfony/FOSRest.git vendor/fos/FOS
 $ git submodule update --init
 ```
 
-### B) Configure the Autoloader
+**Using composer**
+
+Simply run assuming you have installed composer.phar or composer binary:
+
+``` bash
+$ composer require friendsofsymfony/rest-bundle
+```
+
+### B) Configure the Autoloader (not needed for composer)
 
 Add the `FOS` namespace to your autoloader:
 
@@ -71,6 +82,11 @@ public function registerBundles()
     $bundles = array(
         // ...
         new FOS\RestBundle\FOSRestBundle(),
+        
+        // if you installed FOSRestBundle using composer you shoudn't forget
+        // also registering JMSSerializerBundle.
+        
+        // new JMS\SerializerBundle\JMSSerializerBundle(),
     );
 }
 ```

@@ -12,6 +12,7 @@
 namespace FOS\RestBundle\Tests\Routing\Loader;
 
 use FOS\RestBundle\Routing\RestRouteCollection;
+use Symfony\Component\Routing\RouteCollection;
 
 /**
  * RestRouteLoader test.
@@ -29,12 +30,33 @@ class RestRouteLoaderTest extends LoaderTest
         $etalonRoutes   = $this->loadEtalonRoutesInfo('users_controller.yml');
 
         $this->assertTrue($collection instanceof RestRouteCollection);
+        $this->assertEquals(26, count($collection->all()));
+
+        foreach ($etalonRoutes as $name => $params) {
+            $route = $collection->get($name);
+
+            $this->assertNotNull($route, sprintf('route for %s does not exist', $name));
+            $this->assertEquals($params['pattern'], $route->getPattern(), 'Pattern does not match for route: '.$name);
+            $this->assertEquals($params['method'], $route->getRequirement('_method'), 'Method does not match for route: '.$name);
+            $this->assertContains($params['controller'], $route->getDefault('_controller'), 'Controller does not match for route: '.$name);
+        }
+    }
+
+    /**
+     * Test that ResourceController RESTful class gets parsed correctly.
+     */
+    public function testResourceFixture()
+    {
+        $collection     = $this->loadFromControllerFixture('ArticleController');
+        $etalonRoutes   = $this->loadEtalonRoutesInfo('resource_controller.yml');
+
+        $this->assertTrue($collection instanceof RestRouteCollection);
         $this->assertEquals(24, count($collection->all()));
 
         foreach ($etalonRoutes as $name => $params) {
             $route = $collection->get($name);
 
-            $this->assertNotNull($route, sprintf('route %s exists', $name));
+            $this->assertNotNull($route, sprintf('route for %s does not exist', $name));
             $this->assertEquals($params['pattern'], $route->getPattern(), 'Pattern does not match for route: '.$name);
             $this->assertEquals($params['method'], $route->getRequirement('_method'), 'Method does not match for route: '.$name);
             $this->assertContains($params['controller'], $route->getDefault('_controller'), 'Controller does not match for route: '.$name);
@@ -72,12 +94,12 @@ class RestRouteLoaderTest extends LoaderTest
         $etalonRoutes   = $this->loadEtalonRoutesInfo('annotated_users_controller.yml');
 
         $this->assertTrue($collection instanceof RestRouteCollection);
-        $this->assertEquals(12, count($collection->all()));
+        $this->assertEquals(14, count($collection->all()));
 
         foreach ($etalonRoutes as $name => $params) {
             $route = $collection->get($name);
 
-            $this->assertNotNull($route);
+            $this->assertNotNull($route, "no route found for '$name'");
             $this->assertEquals($params['pattern'], $route->getPattern(), 'pattern failed to match for '.$name);
             $this->assertEquals($params['requirements'], $route->getRequirements(), 'requirements failed to match for '.$name);
             $this->assertContains($params['controller'], $route->getDefault('_controller'), 'controller failed to match for '.$name);
@@ -140,9 +162,10 @@ class RestRouteLoaderTest extends LoaderTest
     /**
      * Load routes collection from fixture class under Tests\Fixtures directory.
      *
-     * @param   string  $fixtureName    name of the class fixture
-     * @param   string  $namePrefix     route name prefix
-     * @return  Symfony\Component\Routing\RouteCollection
+     * @param string $fixtureName name of the class fixture
+     * @param string $namePrefix  route name prefix
+     *
+     * @return RouteCollection
      */
     protected function loadFromControllerFixture($fixtureName, $namePrefix = null)
     {

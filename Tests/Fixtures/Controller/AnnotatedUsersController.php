@@ -13,17 +13,28 @@ namespace FOS\RestBundle\Tests\Fixtures\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 
-use FOS\RestBundle\Controller\Annotations\Route,
-    FOS\RestBundle\Controller\Annotations\NoRoute,
-    FOS\RestBundle\Controller\Annotations\Get,
-    FOS\RestBundle\Controller\Annotations\Post,
-    FOS\RestBundle\Controller\Annotations\Put,
-    FOS\RestBundle\Controller\Annotations\Patch,
-    FOS\RestBundle\Controller\Annotations\Delete,
-    FOS\RestBundle\Controller\Annotations\Head;
+use FOS\RestBundle\Controller\Annotations\Route;
+use FOS\RestBundle\Controller\Annotations\NoRoute;
+use FOS\RestBundle\Controller\Annotations\Get;
+use FOS\RestBundle\Controller\Annotations\Post;
+use FOS\RestBundle\Controller\Annotations\Put;
+use FOS\RestBundle\Controller\Annotations\Patch;
+use FOS\RestBundle\Controller\Annotations\Delete;
+use FOS\RestBundle\Controller\Annotations\Head;
+use FOS\RestBundle\Controller\Annotations\Options;
 
 class AnnotatedUsersController extends Controller
 {
+    public function optionsUsersAction()
+    {} // [OPTIONS]     /users
+
+    /**
+     * @Options
+     */
+    public function boptionsUsersAction()
+    {
+    } // [OPTIONS]     /users
+
     public function getUsersAction()
     {} // [GET]     /users
 
@@ -66,33 +77,32 @@ class AnnotatedUsersController extends Controller
     /**
      * @Get
      */
-    public function cgetUserAction($slug)
-    {} // [GET]     /users/{slug}/cget
+    public function bgetUserAction($slug)
+    {} // [GET]     /users/{slug}/bget
 
     /**
      * @Post
      */
-    public function cpostUserAction($slug)
-    {} // [POST]    /users/{slug}/cpost
+    public function bpostUserAction($slug)
+    {} // [POST]    /users/{slug}/bpost
 
     /**
      * @Put
      */
-    public function cputUserAction($slug)
-    {} // [PUT]     /users/{slug}/cput
+    public function bputUserAction($slug)
+    {} // [PUT]     /users/{slug}/bput
 
     /**
      * @Delete
      */
-    public function cdelUserAction($slug)
-    {} // [DELETE]  /users/{slug}/cdel
+    public function bdelUserAction($slug)
+    {} // [DELETE]  /users/{slug}/bdel
 
     /**
      * @Head
      */
-    public function cheadUserAction($slug)
-    {} // [HEAD]    /users/{slug}/chead
-
+    public function bheadUserAction($slug)
+    {} // [HEAD]    /users/{slug}/bhead
 
     /**
      * @NoRoute

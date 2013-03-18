@@ -9,23 +9,12 @@
  * file that was distributed with this source code.
  */
 
-$file = __DIR__.'/../vendor/.composer/autoload.php';
+$file = __DIR__.'/../vendor/autoload.php';
 if (!file_exists($file)) {
     throw new RuntimeException('Install dependencies to run test suite.');
 }
 
-require_once $file;
-
-spl_autoload_register(function($class) {
-    if (0 === strpos($class, 'FOS\\RestBundle\\')) {
-        $path = __DIR__.'/../'.implode('/', array_slice(explode('\\', $class), 2)).'.php';
-        if (!stream_resolve_include_path($path)) {
-            return false;
-        }
-        require_once $path;
-        return true;
-    }
-});
+$autoload = require_once $file;
 
 use Doctrine\Common\Annotations\AnnotationRegistry;
 AnnotationRegistry::registerLoader(function($class) {
@@ -33,5 +22,6 @@ AnnotationRegistry::registerLoader(function($class) {
         $path = __DIR__.'/../'.str_replace('\\', '/', substr($class, strlen('FOS\RestBundle\\')))   .'.php';
         require_once $path;
     }
+
     return class_exists($class, false);
 });

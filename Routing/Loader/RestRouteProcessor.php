@@ -11,11 +11,9 @@
 
 namespace FOS\RestBundle\Routing\Loader;
 
-use Symfony\Component\Config\Loader\FileLoader,
-    Symfony\Component\Config\Loader\LoaderInterface,
-    Symfony\Component\Routing\RouteCollection;
-
-use FOS\RestBundle\Routing\Loader\RestRouteLoader;
+use Symfony\Component\Config\Loader\FileLoader;
+use Symfony\Component\Config\Loader\LoaderInterface;
+use Symfony\Component\Routing\RouteCollection;
 
 /**
  * Processes resource in provided loader.
@@ -36,7 +34,7 @@ class RestRouteProcessor
      * @param string          $type        The resource type
      * @param string          $currentDir  Current directory of the loader
      *
-     * @return  RouteCollection     A RouteCollection instance
+     * @return RouteCollection A RouteCollection instance
      */
     public function importResource(
         LoaderInterface $loader,
@@ -51,7 +49,7 @@ class RestRouteProcessor
 
         if ($loader instanceof FileLoader && null !== $currentDir) {
             $resource = $loader->getLocator()->locate($resource, $currentDir);
-        } elseif ($loader instanceof AbstractRestRouteLoader) {
+        } elseif ($loader instanceof RestRouteLoader) {
             $loader->getControllerReader()->getActionReader()->setParents($parents);
             $loader->getControllerReader()->getActionReader()->setRoutePrefix($routePrefix);
             $loader->getControllerReader()->getActionReader()->setNamePrefix($namePrefix);

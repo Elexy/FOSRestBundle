@@ -11,11 +11,11 @@
 
 namespace FOS\RestBundle\Tests\Routing\Loader;
 
-use Symfony\Component\Config\Loader\LoaderResolver,
-    Symfony\Component\Config\FileLocator;
+use Symfony\Component\Config\Loader\LoaderResolver;
+use Symfony\Component\Config\FileLocator;
 
-use FOS\RestBundle\Routing\Loader\RestRouteProcessor,
-    FOS\RestBundle\Routing\Loader\RestXmlCollectionLoader;
+use FOS\RestBundle\Routing\Loader\RestRouteProcessor;
+use FOS\RestBundle\Routing\Loader\RestXmlCollectionLoader;
 
 /**
  * RestXmlCollectionLoader test.
@@ -63,7 +63,7 @@ class RestXmlCollectionLoaderTest extends LoaderTest
     /**
      * Load routes collection from XML fixture routes under Tests\Fixtures directory.
      *
-     * @param   string  $fixtureName    name of the class fixture
+     * @param string $fixtureName name of the class fixture
      */
     protected function loadFromXmlCollectionFixture($fixtureName)
     {
@@ -73,7 +73,7 @@ class RestXmlCollectionLoaderTest extends LoaderTest
         );
         $controllerLoader = $this->getControllerLoader();
 
-        $resolver = new LoaderResolver(array($collectionLoader, $controllerLoader));
+        new LoaderResolver(array($collectionLoader, $controllerLoader));
 
         return $collectionLoader->load($fixtureName, 'rest');
     }

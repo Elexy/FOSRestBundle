@@ -3,6 +3,13 @@ Full default configuration
 
 ```yaml
 fos_rest:
+    access_denied_listener:
+
+        # Prototype
+        name:                 []
+    param_fetcher_listener:  false
+    cache_dir:            %kernel.cache_dir%/fos_rest
+    allowed_methods_listener:  false
     routing_loader:
         default_format:       ~
     service:
@@ -10,7 +17,9 @@ fos_rest:
         templating:           templating
         serializer:           jms_serializer.serializer
         view_handler:         fos_rest.view_handler.default
-    objects_version:      ~
+    serializer:
+        version:              ~
+        groups:               []
     view:
         default_engine:       twig
         force_redirects:
@@ -29,8 +38,10 @@ fos_rest:
 
             # Prototype
             name:                 []
-        view_response_listener:  force
-        failed_validation:    400
+        view_response_listener:  false
+        failed_validation:       400
+        empty_content:           204
+        serialize_null:          false
     exception:
         codes:
 

@@ -11,9 +11,9 @@
 
 namespace FOS\RestBundle\Tests\DependencyInjection;
 
-use Symfony\Component\DependencyInjection\ContainerBuilder,
-    Symfony\Component\DependencyInjection\Definition,
-    Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Reference;
 
 use FOS\RestBundle\DependencyInjection\FOSRestExtension;
 
@@ -109,6 +109,32 @@ class FOSRestExtensionTest extends \PHPUnit_Framework_TestCase
         $this->assertFalse($this->container->hasDefinition('fos_rest.view_response_listener'));
     }
 
+    public function testForceEmptyContentDefault()
+    {
+        $this->extension->load(array(), $this->container);
+        $this->assertEquals(204, $this->container->getParameter('fos_rest.empty_content'));
+    }
+
+    public function testForceEmptyContentIs200()
+    {
+        $config = array('fos_rest' => array('view' => array('empty_content' => 200)));
+        $this->extension->load($config, $this->container);
+        $this->assertEquals(200, $this->container->getParameter('fos_rest.empty_content'));
+    }
+
+    public function testViewSerializeNullDefault()
+    {
+        $this->extension->load(array(), $this->container);
+        $this->assertFalse($this->container->getParameter('fos_rest.serialize_null'));
+    }
+
+    public function testViewSerializeNullIsTrue()
+    {
+        $config = array('fos_rest' => array('view' => array('serialize_null' => true)));
+        $this->extension->load($config, $this->container);
+        $this->assertTrue($this->container->getParameter('fos_rest.serialize_null'));
+    }
+
     /**
      * Test that extension loads properly.
      */
@@ -175,27 +201,28 @@ class FOSRestExtensionTest extends \PHPUnit_Framework_TestCase
     /**
      * Assert that loader definition described properly.
      *
-     * @param   Definition  $loader                 loader definition
-     * @param   string      $loaderClassParameter   loader class parameter name
+     * @param Definition $loader               loader definition
+     * @param string     $loaderClassParameter loader class parameter name
      */
     private function assertValidRestRouteLoader(Definition $loader, $loaderClassParameter)
     {
         $arguments = $loader->getArguments();
 
         $this->assertEquals('%' . $loaderClassParameter . '%', $loader->getClass());
-        $this->assertEquals(4, count($arguments));
+        $this->assertEquals(5, count($arguments));
         $this->assertEquals('service_container', (string) $arguments[0]);
-        $this->assertEquals('controller_name_converter', (string) $arguments[1]);
-        $this->assertEquals('fos_rest.routing.loader.reader.controller', (string) $arguments[2]);
-        $this->assertEquals('%fos_rest.routing.loader.default_format%', (string) $arguments[3]);
+        $this->assertEquals('file_locator', (string) $arguments[1]);
+        $this->assertEquals('controller_name_converter', (string) $arguments[2]);
+        $this->assertEquals('fos_rest.routing.loader.reader.controller', (string) $arguments[3]);
+        $this->assertEquals('%fos_rest.routing.loader.default_format%', (string) $arguments[4]);
         $this->assertArrayHasKey('routing.loader', $loader->getTags());
     }
 
     /**
      * Assert that loader definition described properly.
      *
-     * @param   Definition  $loader                 loader definition
-     * @param   string      $loaderClassParameter   loader class parameter name
+     * @param Definition $loader               loader definition
+     * @param string     $loaderClassParameter loader class parameter name
      */
     private function assertValidRestFileLoader(Definition $loader, $loaderClassParameter)
     {

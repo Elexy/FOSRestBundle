@@ -1,7 +1,11 @@
 Step 4: ExceptionController support
 ===================================
-Using this custom ExceptionController it is possible to leverage the View layer
-when building responses for uncaught Exceptions.
+
+When implementing an API it is also necessary to handle exceptions in a RESTful
+way, while ensuring that no security sensitive information leaks out. This bundle
+provides an extra controller for that job. Using this custom ExceptionController
+it is possible to leverage the View layer when building responses for uncaught
+Exceptions.
 
 To enable the RestBundle view-layer-aware ExceptionController update the twig
 section of your config as follows:
@@ -49,7 +53,7 @@ class UsersController extends Controller
 ```
 
 See the following example configuration for more details:
-https://github.com/lsmith77/symfony-standard/blob/techtalk/app/config/config.yml
+https://github.com/liip-forks/symfony-standard/blob/techtalk/app/config/config.yml
 
 ## That was it!
 [Return to the index](index.md) or continue reading about [Automatic route generation: single RESTful controller](5-automatic-route-generation_single-restful-controller.md).

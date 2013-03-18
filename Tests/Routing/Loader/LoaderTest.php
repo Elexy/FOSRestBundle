@@ -18,6 +18,8 @@ use Symfony\Component\Yaml\Yaml;
 use FOS\RestBundle\Routing\Loader\RestRouteLoader;
 use FOS\RestBundle\Routing\Loader\Reader\RestControllerReader;
 use FOS\RestBundle\Routing\Loader\Reader\RestActionReader;
+use FOS\RestBundle\Request\ParamReader;
+use FOS\RestBundle\Util\Inflector\DoctrineInflector;
 
 /**
  * Base Loader testing class.
@@ -29,7 +31,7 @@ abstract class LoaderTest extends \PHPUnit_Framework_TestCase
     /**
      * Load routes etalon from yml fixture file under Tests\Fixtures directory.
      *
-     * @param   string  $etalonName     name of the YML fixture
+     * @param string $etalonName name of the YML fixture
      */
     protected function loadEtalonRoutesInfo($etalonName)
     {
@@ -46,15 +48,20 @@ abstract class LoaderTest extends \PHPUnit_Framework_TestCase
         $c = $this->getMockBuilder('Symfony\Component\DependencyInjection\ContainerBuilder')
             ->disableOriginalConstructor()
             ->getMock();
+        $l = $this->getMockBuilder('Symfony\Component\Config\FileLocator')
+            ->disableOriginalConstructor()
+            ->getMock();
         $p = $this->getMockBuilder('Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser')
             ->disableOriginalConstructor()
             ->getMock();
 
         $annotationReader = $this->getAnnotationReader();
+        $paramReader = new ParamReader($annotationReader);
+        $inflector = new DoctrineInflector();
 
-        $ar = new RestActionReader($annotationReader);
+        $ar = new RestActionReader($annotationReader, $paramReader, $inflector);
         $cr = new RestControllerReader($ar, $annotationReader);
 
-        return new RestRouteLoader($c, $p, $cr, 'html');
+        return new RestRouteLoader($c, $l, $p, $cr, 'html');
     }
 }

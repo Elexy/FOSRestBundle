@@ -11,13 +11,14 @@
 
 namespace FOS\RestBundle\View;
 
-use Symfony\Component\HttpFoundation\RedirectResponse,
-    Symfony\Component\HttpFoundation\Response,
-    Symfony\Component\HttpFoundation\Request,
-    Symfony\Component\HttpKernel\Exception\HttpException,
-    Symfony\Component\DependencyInjection\ContainerAware,
-    Symfony\Component\Form\FormInterface,
-    Symfony\Bundle\FrameworkBundle\Templating\TemplateReference;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use JMS\Serializer\Serializer;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\DependencyInjection\ContainerAware;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Bundle\FrameworkBundle\Templating\TemplateReference;
 
 use FOS\Rest\Util\Codes;
 
@@ -47,6 +48,16 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
     protected $failedValidationCode;
 
     /**
+     * @param int HTTP response status code when the view data is null
+     */
+    protected $emptyContentCode;
+
+    /**
+     * @param int Whether or not to serialize null view data
+     */
+    protected $serializeNull;
+
+    /**
      * @var array if to force a redirect for the given key format, with value being the status code to use
      */
     protected $forceRedirects;
@@ -59,17 +70,26 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
     /**
      * Constructor
      *
-     * @param array $formats the supported formats as keys and if the given formats uses templating is denoted by a true value
-     * @param int $failedValidationCode The HTTP response status code for a failed validation
-     * @param string $defaultFormKey    The default parameter form key
-     * @param array $forceRedirects     If to force a redirect for the given key format, with value being the status code to use
-     * @param string $defaultEngine default engine (twig, php ..)
+     * @param array   $formats              the supported formats as keys and if the given formats uses templating is denoted by a true value
+     * @param int     $failedValidationCode The HTTP response status code for a failed validation
+     * @param int     $emptyContentCode     HTTP response status code when the view data is null
+     * @param Boolean $serializeNull        Whether or not to serialize null view data
+     * @param array   $forceRedirects       If to force a redirect for the given key format, with value being the status code to use
+     * @param string  $defaultEngine        default engine (twig, php ..)
      */
-    public function __construct(array $formats = null, $failedValidationCode = Codes::HTTP_BAD_REQUEST, array $forceRedirects = null, $defaultEngine = 'twig')
-    {
-        $this->formats = (array)$formats;
+    public function __construct(
+        array $formats = null,
+        $failedValidationCode = Codes::HTTP_BAD_REQUEST,
+        $emptyContentCode = Codes::HTTP_NO_CONTENT,
+        $serializeNull = false,
+        array $forceRedirects = null,
+        $defaultEngine = 'twig'
+    ) {
+        $this->formats = (array) $formats;
         $this->failedValidationCode = $failedValidationCode;
-        $this->forceRedirects = (array)$forceRedirects;
+        $this->emptyContentCode = $emptyContentCode;
+        $this->serializeNull = $serializeNull;
+        $this->forceRedirects = (array) $forceRedirects;
         $this->defaultEngine = $defaultEngine;
     }
 
@@ -92,7 +112,7 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
      * It can use the public methods of this class to retrieve the needed data and return a
      * Response object ready to be sent.
      *
-     * @param string $format the format that is handled
+     * @param string   $format   the format that is handled
      * @param callable $callable callable that can handle the given format
      */
     public function registerHandler($format, $callable)
@@ -112,21 +132,30 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
      * configuration if the form instance has errors.
      *
      * @param View $view view instance
+     * @param mixed $content
+     *
      * @return int HTTP status code
      */
-    private function getStatusCode(View $view)
+    protected function getStatusCode(View $view, $content = null)
     {
-        if (null !== $code = $view->getStatusCode()) {
+        if (null !== ($code = $view->getStatusCode())) {
             return $code;
         }
 
         $data = $view->getData();
-        if (!is_array($data) || empty($data['form']) || !($data['form'] instanceof FormInterface)) {
-            return Codes::HTTP_OK;
+        if ($data instanceof FormInterface) {
+            $form = $data;
+        } elseif (is_array($data) && isset($data['form'])  && $data['form'] instanceof FormInterface) {
+            $form = $data['form'];
+        } else {
+            $form = false;
         }
 
-        return $data['form']->isBound() && !$data['form']->isValid()
-            ? $this->failedValidationCode : Codes::HTTP_OK;
+        if ($form && $form->isBound() && !$form->isValid()) {
+            return $this->failedValidationCode;
+        }
+
+        return null !== $content ? Codes::HTTP_OK : $this->emptyContentCode;
     }
 
     /**
@@ -154,35 +183,33 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
     /**
      * Get the serializer service
      *
-     * @return JMS\SerializerBundle\Serializer\SerializerInterface
+     * @param View $view view instance from which the serializer should be configured
+     *
+     * @return object that must provide a "serialize()" method
      */
-    public function getSerializer()
+    protected function getSerializer(View $view = null)
     {
-        return $this->container->get('fos_rest.serializer');
-    }
+        $serializer = $this->container->get('fos_rest.serializer');
 
-    /**
-     * Get the serializer objects version
-     *
-     * @param View $view
-     *
-     * @return string|null "Objects versioning" version
-     */
-    protected function getObjectsVersion(View $view)
-    {
-        return $view->getObjectsVersion() ?: $this->container->getParameter('fos_rest.objects_version');
-    }
+        if ($view && $serializer instanceof Serializer) {
+            $groups = $view->getSerializerGroups() ?: $this->container->getParameter('fos_rest.serializer.exclusion_strategy.groups');
+            $version = $view->getSerializerVersion() ?: $this->container->getParameter('fos_rest.serializer.exclusion_strategy.version');
 
-    /**
-     * Get the serializer objects groups
-     *
-     * @param View $view
-     *
-     * @return array|null "Objects groups" groups
-     */
-    protected function getObjectsGroups(View $view)
-    {
-        return $view->getObjectsGroups();
+            if ($groups && $version) {
+                $serializer->setExclusionStrategy(new GroupsVersionExclusionStrategy($groups, $version));
+            } elseif ($groups) {
+                $serializer->setGroups($groups);
+            } elseif ($version) {
+                $serializer->setVersion($version);
+            }
+
+            $callback = $view->getSerializerCallback();
+            if ($callback) {
+                call_user_func($callback, $this, $serializer);
+            }
+        }
+
+        return $serializer;
     }
 
     /**
@@ -200,7 +227,7 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
      *
      * Decides on which handler to use based on the request format
      *
-     * @param View $view
+     * @param View    $view
      * @param Request $request Request object
      *
      * @return Response
@@ -228,7 +255,7 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
     /**
      * Create the Response from the view
      *
-     * @param View $view
+     * @param View   $view
      * @param string $location
      * @param string $format
      *
@@ -236,25 +263,26 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
      */
     public function createRedirectResponse(View $view, $location, $format)
     {
-        $view->setHeader('Location', $location);
-
-        $code = isset($this->forceRedirects[$format])
-            ? $this->forceRedirects[$format] : $this->getStatusCode($view);
-
+        $content = null;
+        $response = $view->getResponse();
         if ('html' === $format && isset($this->forceRedirects[$format])) {
-            $response = new RedirectResponse($location, $code);
-            $response->headers->replace($view->getHeaders());
-        } else {
-            $response = new Response('', $code, $view->getHeaders());
+            $redirect = new RedirectResponse($location);
+            $content = $redirect->getContent();
+            $response->setContent($content);
         }
 
+        $code = isset($this->forceRedirects[$format])
+            ? $this->forceRedirects[$format] : $this->getStatusCode($view, $content);
+
+        $response->setStatusCode($code);
+        $response->headers->set('Location', $location);
         return $response;
     }
 
     /**
      * Render the view data with the given template
      *
-     * @param View $view
+     * @param View   $view
      * @param string $format
      *
      * @return string
@@ -288,22 +316,16 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
     public function prepareTemplateParameters(View $view)
     {
         $data = $view->getData();
-        if (empty($data)) {
+        if ($data instanceof FormInterface) {
+            return array($view->getTemplateVar() => $data->getData(), 'form' => $data->createView());
+        }
+
+        if (empty($data) || !is_array($data) || is_numeric((key($data)))) {
             return array($view->getTemplateVar() => $data);
         }
 
-        if (!is_array($data)) {
-            $data = array($view->getTemplateVar() => $data);
-        }
-
-        foreach (array_keys($data) as $key) {
-            if ($data[$key] instanceof FormInterface) {
-                $data[$key] = $data[$key]->createView();
-            }
-        }
-
-        if (is_numeric($key)) {
-            $data = array($view->getTemplateVar() => $data);
+        if (isset($data['form']) && $data['form'] instanceof FormInterface) {
+            $data['form'] = $data['form']->createView();
         }
 
         return $data;
@@ -312,38 +334,42 @@ class ViewHandler extends ContainerAware implements ViewHandlerInterface
     /**
      * Handles creation of a Response using either redirection or the templating/serializer service
      *
-     * @param View $view
+     * @param View    $view
      * @param Request $request
-     * @param string $format
+     * @param string  $format
      *
      * @return Response
      */
     public function createResponse(View $view, Request $request, $format)
     {
-        $view->setHeader('Content-Type', $request->getMimeType($format));
-
         $route = $view->getRoute();
         $location = $route
-            ? $this->getRouter()->generate($route, (array)$view->getData(), true)
+            ? $this->getRouter()->generate($route, (array) $view->getData(), true)
             : $view->getLocation();
 
         if ($location) {
             return $this->createRedirectResponse($view, $location, $format);
         }
 
+        $content = null;
         if ($this->isFormatTemplating($format)) {
             $content = $this->renderTemplate($view, $format);
-        } else {
-            $serializer = $this->getSerializer();
-            $serializer->setVersion($this->getObjectsVersion($view));
-
-            if ($this->getObjectsGroups($view)) {
-                $serializer->setGroups($this->getObjectsGroups($view));
-            }
-
+        } elseif ($this->serializeNull || null !== $view->getData()) {
+            $serializer = $this->getSerializer($view);
             $content = $serializer->serialize($view->getData(), $format);
         }
 
-        return new Response($content, $this->getStatusCode($view), $view->getHeaders());
+        $response = $view->getResponse();
+        $response->setStatusCode($this->getStatusCode($view, $content));
+
+        if (null !== $content) {
+            $response->setContent($content);
+        }
+
+        if (!$response->headers->has('Content-Type')) {
+            $response->headers->set('Content-Type', $request->getMimeType($format));
+        }
+
+        return $response;
     }
 }
