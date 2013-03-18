@@ -71,9 +71,7 @@ the important ones for configuring the view:
 * ``setData($data)`` - Set the object graph or list of objects to serialize.
 * ``setHeader($name, $value)`` - Set a header to put on the HTTP response.
 * ``setHeaders(array $headers)`` - Set multiple headers to put on the HTTP response.
-* ``setSerializerVersion($version)`` - Set the version of the serialization format to use.
-* ``setSerializerGroups($groups)`` - Set the groups for serialization.
-* ``setSerializerCallback($callback)`` - Set a callback that receives the serializer for configuration purposes.
+* ``setSerializationContext($context)`` - Set the serialization context (JMSSerializerBundle only).
 * ``setTemplate($name)`` - Name of the template to use in case of HTML rendering.
 * ``setTemplateVar($name)`` - Name of the variable the data is in, when passed to HTML template. Defaults to ``'data'``.
 * ``setEngine($name)`` - Name of the engine to render HTML template. Can be autodetected.
@@ -146,11 +144,12 @@ custom handler for a specific format. The custom handler can either be
 registered by defining a custom service, via a compiler pass or it can even be
 registered from inside the controller action.
 
-The callable will receive 3 parameters:
+The callable will receive 4 parameters:
 
  * the instance of the ``ViewHandler``
  * the instance of the ``View``
  * the instance of the ``Request``
+ * the request format
 
 Note there are several public methods on the ``ViewHandler`` which can be helpful:
 
@@ -158,6 +157,7 @@ Note there are several public methods on the ``ViewHandler`` which can be helpfu
  * ``createResponse()``
  * ``createRedirectResponse()``
  * ``renderTemplate()``
+ * ``getSerializer()``
 
 There is an example inside LiipHelloBundle to show how to register a custom handler:
 https://github.com/liip/LiipHelloBundle/blob/master/View/RSSViewHandler.php
